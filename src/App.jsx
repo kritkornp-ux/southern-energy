@@ -26,6 +26,7 @@ const navGroups = [
     { key: 'issue', label: 'จ่ายออกสินค้า' },
     { key: 'sales', label: 'ใบสั่งขาย' },
     { key: 'checklist', label: 'เช็คลิสต์สำรวจ' },
+    { key: 'roi', label: 'คำนวณ ROI' },
   ]},
   { label: 'รายงาน', items: [
     { key: 'stockreport', label: 'รายงานสต็อก' },
@@ -43,6 +44,7 @@ const screenTitles = {
   issue: 'จ่ายออกสินค้า',
   sales: 'ใบสั่งขาย',
   checklist: 'เช็คลิสต์สำรวจ',
+  roi: 'คำนวณ ROI · วิเคราะห์ความคุ้มค่าการลงทุน',
   stockreport: 'รายงานสต็อก',
   movereport: 'รายงานเคลื่อนไหว',
   surveyreport: 'รายงานสำรวจ',
@@ -252,6 +254,7 @@ export default function App() {
       case 'stockreport': return <StockReportScreen products={products} mobile={mobile} />;
       case 'movereport': return <MoveReportScreen movements={movements} moveFilter={moveFilter} setMoveFilter={setMoveFilter} mobile={mobile} />;
       case 'checklist': return <ChecklistScreen checks={checks} setChecks={setChecks} notes={notes} setNotes={setNotes} surveyCustomer={surveyCustomer} setSurveyCustomer={setSurveyCustomer} surveyor={surveyor} setSurveyor={setSurveyor} surveyDate={surveyDate} setSurveyDate={setSurveyDate} surveys={surveys} setSurveys={setSurveys} navigate={navigate} setJustSaved={setJustSaved} mobile={mobile} />;
+      case 'roi': return <RoiScreen mobile={mobile} />;
       case 'surveyreport': return <SurveyReportScreen surveys={surveys} justSaved={justSaved} mobile={mobile} />;
       case 'customers': return <CustomersScreen customerData={customerData} mobile={mobile} />;
       default: return null;
@@ -1164,6 +1167,175 @@ function CustomersScreen({ customerData, mobile }) {
           </div>
         </CardWrap>
       ))}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ROI · วิเคราะห์ความคุ้มค่าการลงทุนโซลาร์
+   ══════════════════════════════════════════════════════════════ */
+function RoiScreen({ mobile }) {
+  const [sizeKw, setSizeKw]       = useState('10');
+  const [pricePerKw, setPricePerKw] = useState('32000');
+  const [sunHours, setSunHours]   = useState('4.2');
+  const [rate, setRate]           = useState('4.5');
+  const [selfUse, setSelfUse]     = useState('80');
+  const [inflation, setInflation] = useState('3');
+  const [custName, setCustName]   = useState('');
+
+  const num = (v) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+  const LIFESPAN = 25;
+  const DEGRADE = 0.005; // แผงเสื่อม 0.5%/ปี
+  const PANEL_W = 650;
+
+  const kw = num(sizeKw);
+  const totalCost = kw * num(pricePerKw);
+  const prodYr1 = kw * num(sunHours) * 365;            // kWh/ปี (ปีแรก)
+  const selfR = num(selfUse) / 100;
+  const g = num(inflation) / 100;
+  const saveYr1 = prodYr1 * selfR * num(rate);
+  const panels = Math.ceil((kw * 1000) / PANEL_W);
+
+  // ตารางกระแสเงินสด 25 ปี (รวมค่าไฟขึ้น + แผงเสื่อม)
+  const schedule = [];
+  let cum = 0, paybackYr = null;
+  for (let i = 1; i <= LIFESPAN; i++) {
+    const prod = prodYr1 * (1 - DEGRADE * (i - 1));
+    const rt = num(rate) * Math.pow(1 + g, i - 1);
+    const save = prod * selfR * rt;
+    const prevCum = cum;
+    cum += save;
+    if (paybackYr === null && cum >= totalCost && totalCost > 0) {
+      const need = totalCost - prevCum;
+      paybackYr = (i - 1) + (save > 0 ? need / save : 0);
+    }
+    schedule.push({ year: i, prod, save, cum });
+  }
+  const cum25 = cum;
+  const netProfit = cum25 - totalCost;
+  const roiPct = totalCost > 0 ? (netProfit / totalCost) * 100 : 0;
+  const co2Ton = (prodYr1 * 0.5) / 1000; // 0.5 kg CO2/kWh
+
+  const fmt0 = (n) => Math.round(n).toLocaleString('en-US');
+  const fmt1 = (n) => n.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+  const Field = ({ label, value, onChange, suffix, hint, step }) => (
+    <div style={{ marginBottom: 14 }}>
+      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#4a5d74', marginBottom: 5 }}>{label}</label>
+      <div style={{ position: 'relative' }}>
+        <input type="number" inputMode="decimal" step={step || 'any'} value={value}
+          onChange={e => onChange(e.target.value)}
+          style={{ width: '100%', padding: '11px 44px 11px 14px', border: '1.5px solid #e6edf5', borderRadius: 10, fontSize: '15px', fontFamily: MONO, fontWeight: 600, color: '#0d1b2e', boxSizing: 'border-box', background: '#f6f9fc' }} />
+        {suffix && <span style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', fontSize: '12.5px', color: '#9aabbf', fontWeight: 600 }}>{suffix}</span>}
+      </div>
+      {hint && <div style={{ fontSize: '11px', color: '#9aabbf', marginTop: 4 }}>{hint}</div>}
+    </div>
+  );
+
+  const kpis = [
+    { label: 'ประหยัดค่าไฟ/เดือน', value: money(Math.round(saveYr1 / 12)), sub: 'ปีแรก', color: GREEN, icon: '💡' },
+    { label: 'ระยะคืนทุน', value: paybackYr ? fmt1(paybackYr) + ' ปี' : '—', sub: 'จุดคุ้มทุน', color: BLUE, icon: '⏳' },
+    { label: 'ROI 25 ปี', value: fmt0(roiPct) + '%', sub: 'ผลตอบแทน', color: '#7c3aed', icon: '📈' },
+    { label: 'กำไรสุทธิ 25 ปี', value: money(Math.round(netProfit)), sub: 'หลังหักทุน', color: '#d97706', icon: '💰' },
+  ];
+
+  const milestones = [1, 3, 5, 10, 15, 20, 25];
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : '340px 1fr', gap: 24, alignItems: 'flex-start' }}>
+      {/* ── ฟอร์มกรอกข้อมูล ── */}
+      <CardWrap>
+        <div style={{ fontSize: '15px', fontWeight: 700, color: '#0d1b2e', marginBottom: 18 }}>ข้อมูลระบบโซลาร์</div>
+        <Field label="ชื่อลูกค้า / โครงการ" value={custName} onChange={setCustName} />
+        <Field label="ขนาดระบบ" value={sizeKw} onChange={setSizeKw} suffix="kW" hint={`≈ ${panels} แผง (${PANEL_W}W)`} />
+        <Field label="ราคาต่อ kW" value={pricePerKw} onChange={setPricePerKw} suffix="บาท" hint="ทั่วไป 25,000–40,000 บาท/kW" />
+        <Field label="ชั่วโมงแดดเฉลี่ย/วัน" value={sunHours} onChange={setSunHours} suffix="ชม." hint="ภาคใต้ ≈ 4.0–4.5 ชม." />
+        <Field label="ค่าไฟต่อหน่วย" value={rate} onChange={setRate} suffix="บาท" hint="ค่าไฟ + Ft ปัจจุบัน" />
+        <Field label="สัดส่วนใช้ไฟที่ผลิต" value={selfUse} onChange={setSelfUse} suffix="%" hint="ไฟที่ผลิตแล้วได้ใช้จริง" />
+        <Field label="ค่าไฟปรับขึ้นต่อปี" value={inflation} onChange={setInflation} suffix="%" hint="เฉลี่ยย้อนหลัง ≈ 3%/ปี" />
+        <div style={{ marginTop: 8, padding: '12px 14px', background: '#f0f7ff', borderRadius: 10, fontSize: '12px', color: '#4a5d74', lineHeight: 1.6 }}>
+          💡 คำนวณอายุระบบ {LIFESPAN} ปี · แผงเสื่อมสภาพ 0.5%/ปี · ลด CO₂ ≈ <b>{fmt1(co2Ton)} ตัน/ปี</b>
+        </div>
+      </CardWrap>
+
+      {/* ── ผลลัพธ์ ── */}
+      <div>
+        {/* มูลค่าลงทุน + KPI */}
+        <div style={{ background: 'linear-gradient(135deg, #0d1b2e, #162d4a)', borderRadius: 16, padding: mobile ? '20px' : '24px 28px', color: '#fff', marginBottom: 20, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div>
+            <div style={{ fontSize: '13px', color: 'rgba(255,255,255,.55)', marginBottom: 4 }}>เงินลงทุนทั้งระบบ{custName ? ` · ${custName}` : ''}</div>
+            <div style={{ fontSize: mobile ? '30px' : '38px', fontWeight: 800, fontFamily: MONO, lineHeight: 1.1 }}>{money(Math.round(totalCost))}</div>
+            <div style={{ fontSize: '12.5px', color: 'rgba(255,255,255,.5)', marginTop: 4 }}>{fmt1(kw)} kW · {panels} แผง · ผลิต ≈ {fmt0(prodYr1)} kWh/ปี</div>
+          </div>
+          <div style={{ textAlign: mobile ? 'left' : 'right' }}>
+            <div style={{ fontSize: '13px', color: 'rgba(255,255,255,.55)', marginBottom: 4 }}>ประหยัดรวม {LIFESPAN} ปี</div>
+            <div style={{ fontSize: mobile ? '26px' : '32px', fontWeight: 800, fontFamily: MONO, color: '#4ade80', lineHeight: 1.1 }}>{money(Math.round(cum25))}</div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: mobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
+          {kpis.map((k, i) => (
+            <CardWrap key={i} style={{ padding: '18px 20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                <span style={{ fontSize: '12px', color: '#7b8fa3', fontWeight: 600 }}>{k.label}</span>
+                <span style={{ fontSize: '18px' }}>{k.icon}</span>
+              </div>
+              <div style={{ fontSize: mobile ? '19px' : '22px', fontWeight: 800, color: '#0d1b2e', fontFamily: MONO, marginBottom: 3, lineHeight: 1.1 }}>{k.value}</div>
+              <div style={{ fontSize: '11.5px', color: k.color, fontWeight: 600 }}>{k.sub}</div>
+            </CardWrap>
+          ))}
+        </div>
+
+        {/* แถบคืนทุน */}
+        <CardWrap style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
+            <div style={{ fontSize: '14px', fontWeight: 700, color: '#0d1b2e' }}>จุดคืนทุน</div>
+            <div style={{ fontSize: '13px', color: '#7b8fa3' }}>{paybackYr ? `คืนทุนภายใน ${fmt1(paybackYr)} ปี จากอายุ ${LIFESPAN} ปี` : 'ยังไม่คืนทุนในอายุระบบ'}</div>
+          </div>
+          <div style={{ height: 14, background: '#eef3f9', borderRadius: 8, overflow: 'hidden', position: 'relative' }}>
+            <div style={{ height: '100%', width: Math.min(100, paybackYr ? (paybackYr / LIFESPAN) * 100 : 100) + '%', background: 'linear-gradient(90deg,#16a34a,#4ade80)', borderRadius: 8 }} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#9aabbf', marginTop: 6, fontFamily: MONO }}>
+            <span>ปีที่ 0</span><span>ปีที่ {LIFESPAN}</span>
+          </div>
+        </CardWrap>
+
+        {/* ตารางผลตอบแทนรายปี */}
+        <CardWrap>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: '#0d1b2e', marginBottom: 14 }}>ผลตอบแทนสะสม (ช่วงเวลาสำคัญ)</div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr>
+                <Th>ปีที่</Th>
+                <Th style={{ textAlign: 'right' }}>ผลิตไฟ (kWh)</Th>
+                <Th style={{ textAlign: 'right' }}>ประหยัด/ปี</Th>
+                <Th style={{ textAlign: 'right' }}>สะสม</Th>
+                <Th style={{ textAlign: 'right' }}>สถานะ</Th>
+              </tr></thead>
+              <tbody>
+                {milestones.map(y => {
+                  const r = schedule[y - 1];
+                  const paid = r.cum >= totalCost;
+                  return (
+                    <tr key={y}>
+                      <Td style={{ fontFamily: MONO, fontWeight: 700, color: BLUE }}>{y}</Td>
+                      <Td style={{ textAlign: 'right', fontFamily: MONO, color: '#4a5d74' }}>{fmt0(r.prod)}</Td>
+                      <Td style={{ textAlign: 'right', fontFamily: MONO, fontWeight: 600, color: GREEN }}>{money(Math.round(r.save))}</Td>
+                      <Td style={{ textAlign: 'right', fontFamily: MONO, fontWeight: 700, color: '#0d1b2e' }}>{money(Math.round(r.cum))}</Td>
+                      <Td style={{ textAlign: 'right' }}>
+                        <span style={pill(paid ? 'คืนทุนแล้ว' : 'กำลังคืนทุน', paid ? '#15803d' : '#b45309', paid ? '#dcfce7' : '#fef3c7')}>{paid ? 'คืนทุนแล้ว' : 'กำลังคืนทุน'}</span>
+                      </Td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ fontSize: '11px', color: '#9aabbf', marginTop: 12, lineHeight: 1.6 }}>
+            * ตัวเลขเป็นการประมาณการเพื่อใช้เสนอขายเบื้องต้น คำนวณจากค่าไฟที่ปรับขึ้น {num(inflation)}%/ปี และแผงเสื่อมสภาพ 0.5%/ปี · ผลจริงขึ้นกับสภาพหน้างานและการใช้ไฟ
+          </div>
+        </CardWrap>
+      </div>
     </div>
   );
 }
