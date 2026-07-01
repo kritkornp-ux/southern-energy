@@ -119,16 +119,10 @@ export function getCustomers() {
 }
 
 export const users = [
-  { id: 'somchai', name: 'สมชาย กิจเจริญ', role: 'หัวหน้าคลัง', dept: 'คลังสินค้า', pin: '1234', color: '#2563eb' },
-  { id: 'wipa', name: 'วิภา สุขใจ', role: 'เจ้าหน้าที่จ่ายออก', dept: 'คลังสินค้า', pin: '1234', color: '#16a34a' },
-  { id: 'thana', name: 'ธนา พงษ์ไพร', role: 'เจ้าหน้าที่รับเข้า', dept: 'คลังสินค้า', pin: '1234', color: '#0891b2' },
-  { id: 'nattaya', name: 'ณัฐญา ศรีทอง', role: 'ฝ่ายขาย', dept: 'การขาย', pin: '1234', color: '#d97706' },
-  { id: 'prasert', name: 'ประเสริฐ มั่นคง', role: 'วิศวกรสำรวจหน้างาน', dept: 'วิศวกรรม', pin: '1234', color: '#7c3aed' },
-  { id: 'kanya', name: 'กัญญา ใจดี', role: 'ฝ่ายบัญชี', dept: 'บัญชี/การเงิน', pin: '1234', color: '#db2777' },
-  { id: 'wuttichai', name: 'วุฒิชัย แดงสว่าง', role: 'ช่างติดตั้ง', dept: 'ติดตั้ง', pin: '1234', color: '#ea580c' },
-  { id: 'siriporn', name: 'ศิริพร วงศ์ทอง', role: 'ฝ่ายจัดซื้อ', dept: 'จัดซื้อ', pin: '1234', color: '#0d9488' },
-  { id: 'anan', name: 'อนันต์ รุ่งเรือง', role: 'ผู้จัดการคลัง', dept: 'บริหาร', pin: '1234', color: '#4f46e5' },
-  { id: 'admin', name: 'ผู้ดูแลระบบ', role: 'Administrator', dept: 'IT', pin: '0000', color: '#475569' },
+  { id: 'aom', name: 'รังสิยา ธนาพงศ์ (ออม)', role: 'แอดมิน', dept: 'บริหารระบบ', pin: 'Aom@2569', color: '#2563eb' },
+  { id: 'nun', name: 'จุฑามาศ จิตวิจารณ์ (นุ่น)', role: 'แอดมิน', dept: 'บริหารระบบ', pin: 'Nun@2569', color: '#7c3aed' },
+  { id: 'sikaew', name: 'เพ็ชรินทร์ ณ ตะกั่วป่า (สีแก้ว)', role: 'พนักงานขาย', dept: 'ฝ่ายขาย', pin: 'Sikaew@2569', color: '#d97706' },
+  { id: 'ben', name: 'กัลยาณี เกิดเกตุ (เบญ)', role: 'พนักงานขาย', dept: 'ฝ่ายขาย', pin: 'Ben@2569', color: '#db2777' },
 ];
 
 export const seedSurveys = [
