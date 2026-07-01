@@ -64,16 +64,23 @@ export function useSupabaseData() {
   const [surveys, setSurveys] = useState(seedSurveys);
   const [loading, setLoading] = useState(true);
   const [dbConnected, setDbConnected] = useState(false);
+  const [pwOverrides, setPwOverrides] = useState({}); // {id: pinที่เปลี่ยนแล้ว}
 
   const loadAll = useCallback(async () => {
     try {
-      const [pRes, lRes, mRes, cRes, sRes] = await Promise.all([
+      const [pRes, lRes, mRes, cRes, sRes, uRes] = await Promise.all([
         supabase.from('products').select('*').order('sku'),
         supabase.from('locations').select('*').order('code'),
         supabase.from('movements').select('*').order('id', { ascending: false }),
         supabase.from('customers').select('*').order('id'),
         supabase.from('surveys').select('*').order('created_at', { ascending: false }),
+        supabase.from('app_users').select('id, pin'),
       ]);
+
+      // รหัสผ่านที่ผู้ใช้เปลี่ยนไว้ (เก็บใน app_users) มาทับรหัสในโค้ด
+      const ov = {};
+      (uRes && uRes.data ? uRes.data : []).forEach(u => { if (u.pin) ov[u.id] = u.pin; });
+      setPwOverrides(ov);
 
       if (pRes.error || !pRes.data?.length) throw new Error('No DB data');
 
@@ -263,10 +270,28 @@ export function useSupabaseData() {
     return OK;
   }, [dbConnected, loadAll]);
 
+  // เปลี่ยนรหัสผ่าน (บันทึกลง app_users เพื่อให้ใช้ได้ทุกเครื่อง)
+  const changePassword = useCallback(async (id, newPin) => {
+    const u = users.find(x => x.id === id);
+    if (!u) return fail('ไม่พบผู้ใช้');
+    if (dbConnected) {
+      const { error } = await supabase.from('app_users').upsert({
+        id: u.id, name: u.name, role: u.role, dept: u.dept, pin: newPin, color: u.color
+      }, { onConflict: 'id' });
+      if (error) return fail(error);
+    }
+    setPwOverrides(prev => ({ ...prev, [id]: newPin }));
+    return OK;
+  }, [dbConnected, users]);
+
+  // รายชื่อผู้ใช้ + รหัสผ่านล่าสุด (โค้ด + ที่เปลี่ยนไว้ใน DB)
+  const effectiveUsers = users.map(u => pwOverrides[u.id] ? { ...u, pin: pwOverrides[u.id] } : u);
+
   return {
-    products, locations, movements, customerGroups, users, surveys,
+    products, locations, movements, customerGroups, users: effectiveUsers, surveys,
     loading, dbConnected, loadAll,
     addMovement, addSurvey, updateProduct, setSurveys,
-    addProduct, deleteProduct, adjustStock, addLocation, deleteLocation
+    addProduct, deleteProduct, adjustStock, addLocation, deleteLocation,
+    changePassword
   };
 }

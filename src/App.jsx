@@ -90,8 +90,30 @@ export default function App() {
     products, locations, movements, customerGroups: customerData,
     users, surveys, setSurveys, loading: dbLoading, dbConnected,
     addMovement, addSurvey, updateProduct,
-    addProduct, deleteProduct, adjustStock, addLocation, deleteLocation
+    addProduct, deleteProduct, adjustStock, addLocation, deleteLocation,
+    changePassword
   } = useSupabaseData();
+
+  const [pwModal, setPwModal] = useState(false);
+  const [pwForm, setPwForm] = useState({ cur: '', n1: '', n2: '' });
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwErr, setPwErr] = useState('');
+  const [pwOk, setPwOk] = useState(false);
+  const pwSet = (k) => (v) => setPwForm(f => ({ ...f, [k]: v }));
+  const openPw = () => { setPwErr(''); setPwOk(false); setPwForm({ cur: '', n1: '', n2: '' }); setPwModal(true); };
+  const doChangePw = async () => {
+    setPwErr('');
+    if (pwForm.cur !== user.pin) { setPwErr('รหัสผ่านปัจจุบันไม่ถูกต้อง'); return; }
+    if (!pwForm.n1 || pwForm.n1.length < 4) { setPwErr('รหัสใหม่ต้องยาวอย่างน้อย 4 ตัวอักษร'); return; }
+    if (pwForm.n1 !== pwForm.n2) { setPwErr('รหัสใหม่ทั้งสองช่องไม่ตรงกัน'); return; }
+    setPwBusy(true);
+    const r = await changePassword(user.id, pwForm.n1);
+    setPwBusy(false);
+    if (r && r.ok === false) { setPwErr(r.error || 'บันทึกไม่สำเร็จ'); return; }
+    setUser({ ...user, pin: pwForm.n1 });
+    setPwOk(true);
+    setPwForm({ cur: '', n1: '', n2: '' });
+  };
 
   const mobile = vw <= BP;
 
@@ -193,6 +215,7 @@ export default function App() {
           <div style={{ fontSize: '13px', fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</div>
           <div style={{ fontSize: '11px', color: 'rgba(255,255,255,.4)' }}>{user.role}</div>
         </div>
+        <button onClick={openPw} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.4)', fontSize: '16px', cursor: 'pointer', padding: 4 }} title="เปลี่ยนรหัสผ่าน">🔑</button>
         <button onClick={() => { setUser(null); setScreen('dashboard'); }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.4)', fontSize: '18px', cursor: 'pointer', padding: 4 }} title="ออกจากระบบ">⏻</button>
       </div>
     </div>
@@ -273,6 +296,35 @@ export default function App() {
           {renderScreen()}
         </div>
       </div>
+
+      {pwModal && (
+        <Modal title="เปลี่ยนรหัสผ่าน" onClose={() => { if (!pwBusy) setPwModal(false); }}>
+          <div style={{ fontSize: '12.5px', color: '#7b8fa3', marginBottom: 16 }}>
+            บัญชี: <b style={{ color: '#0d1b2e' }}>{user.name}</b> (@{user.id})
+          </div>
+          {pwOk ? (
+            <>
+              <div style={{ textAlign: 'center', padding: '12px 0 20px' }}>
+                <div style={{ fontSize: '40px', marginBottom: 8 }}>✅</div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: '#15803d' }}>เปลี่ยนรหัสผ่านสำเร็จ</div>
+                <div style={{ fontSize: '12px', color: '#7b8fa3', marginTop: 4 }}>ใช้รหัสใหม่ในการเข้าสู่ระบบครั้งต่อไป</div>
+              </div>
+              <button onClick={() => setPwModal(false)} style={{ width: '100%', padding: '12px', background: BLUE, color: '#fff', border: 'none', borderRadius: 10, fontSize: '14px', fontWeight: 700, cursor: 'pointer' }}>เสร็จสิ้น</button>
+            </>
+          ) : (
+            <>
+              <RoiField label="รหัสผ่านปัจจุบัน" value={pwForm.cur} onChange={pwSet('cur')} type="password" />
+              <RoiField label="รหัสผ่านใหม่" value={pwForm.n1} onChange={pwSet('n1')} type="password" hint="อย่างน้อย 4 ตัวอักษร" />
+              <RoiField label="ยืนยันรหัสผ่านใหม่" value={pwForm.n2} onChange={pwSet('n2')} type="password" />
+              {pwErr && <div style={{ color: RED, fontSize: '12.5px', marginBottom: 12, textAlign: 'center', background: '#fee2e2', padding: '8px', borderRadius: 8 }}>{pwErr}</div>}
+              <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                <button onClick={() => { if (!pwBusy) setPwModal(false); }} disabled={pwBusy} style={{ flex: 1, padding: '11px', background: '#eef3f9', color: '#4a5d74', border: 'none', borderRadius: 10, fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>ยกเลิก</button>
+                <button onClick={doChangePw} disabled={pwBusy} style={{ flex: 1, padding: '11px', background: GREEN, color: '#fff', border: 'none', borderRadius: 10, fontSize: '13px', fontWeight: 700, cursor: 'pointer', opacity: pwBusy ? .6 : 1 }}>{pwBusy ? 'กำลังบันทึก…' : 'เปลี่ยนรหัสผ่าน'}</button>
+              </div>
+            </>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }
